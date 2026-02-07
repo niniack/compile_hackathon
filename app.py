@@ -165,22 +165,40 @@ async def judge_translation(req: JudgeRequest):
     lingo_translation = tracker.lingo[idx]
     user_translation = req.user_translation
 
-    prompt = (
-        "You are a translation quality judge. Compare a user's translation against a ground-truth reference.\n"
-        "Rate the user translation from 1-10 and give one-sentence feedback on accuracy and fluency. "
-        "Don't reveal the true translation, they might try again.\n\n"
-        f"Ground Truth: {lingo_translation}\n"
-        f"User Translation: {user_translation}\n\n"
-        "Judgment:"
+    print(f"[JUDGE] idx={idx}")
+    print(f"[JUDGE] ground_truth: {lingo_translation}")
+    print(f"[JUDGE] user_input:   {user_translation}")
+
+    system_msg = (
+        "You are a strict translation quality judge. You will be given a REFERENCE translation and a USER translation. "
+        "Compare them carefully. Output EXACTLY in this format:\n"
+        "Score: N/10\n"
+        "Feedback: <one sentence>\n\n"
+        "Rules:\n"
+        "- Score 9-10: meaning and fluency are both excellent\n"
+        "- Score 7-8: minor wording differences but meaning is correct\n"
+        "- Score 4-6: some meaning is lost or awkward phrasing\n"
+        "- Score 1-3: major errors or missing meaning\n"
+        "- Do NOT reveal the reference translation in your feedback\n"
+        "- Read BOTH translations carefully before scoring"
+    )
+
+    user_msg = (
+        f"REFERENCE: {lingo_translation}\n"
+        f"USER: {user_translation}"
     )
 
     try:
         response = hf_client.chat_completion(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
             model="meta-llama/Llama-3.1-8B-Instruct",
-            max_tokens=200,
+            max_tokens=150,
         )
         judgment = response.choices[0].message.content.strip()
+        print(f"[JUDGE] response: {judgment}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM evaluation failed: {str(e)}")
 
