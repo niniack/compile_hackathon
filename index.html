@@ -10,10 +10,7 @@
   input, button { font-size: 16px; padding: 8px; }
   #url-bar { display: flex; gap: 8px; margin-bottom: 20px; }
   #url-bar input { flex: 1; }
-  .para { margin-bottom: 16px; }
-  .zh { font-size: 20px; cursor: pointer; line-height: 1.8; }
-  .zh .selected { background: #fde68a; border-radius: 2px; }
-  .en { color: #666; font-size: 14px; margin-top: 4px; }
+  .para { margin-bottom: 12px; line-height: 1.7; }
   section { margin-bottom: 24px; }
   #status { color: #999; font-size: 14px; }
 </style>
@@ -22,7 +19,7 @@
 
 
 <div id="url-bar">
-  <input id="url" placeholder="Paste NYT article URL" />
+  <input id="url" placeholder="Paste article URL" />
   <button onclick="loadArticle()">Load</button>
 </div>
 <div id="status"></div>
@@ -32,30 +29,18 @@
 </section>
 
 <script>
-let data = { en: [], zh: [] };
-
 async function loadArticle() {
   const url = document.getElementById('url').value;
-  document.getElementById('status').textContent = 'Loading & translating...';
+  document.getElementById('status').textContent = 'Loading...';
   const res = await fetch('/load-article', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url })
   });
-  data = await res.json();
+  const data = await res.json();
   if (data.error) { document.getElementById('status').textContent = data.error; return; }
-  document.getElementById('status').textContent = '';
-  renderArticle();
-}
-
-function renderArticle() {
+  document.getElementById('status').textContent = data.paragraphs.length + ' paragraphs';
   const el = document.getElementById('article');
-  el.innerHTML = '';
-  data.zh.forEach((zh, i) => {
-    const div = document.createElement('div');
-    div.className = 'para';
-    div.innerHTML = `<div class="zh">${zh}</div><div class="en">${data.en[i] || ''}</div>`;
-    el.appendChild(div);
-  });
+  el.innerHTML = data.paragraphs.map(p => `<div class="para">${p}</div>`).join('');
   document.getElementById('article-section').hidden = false;
 }
 </script>
