@@ -198,9 +198,25 @@
       const state = await fetch('/state').then(r => r.json());
       const idx = state.focus;
 
+      // Send user translation to the backend for judgment
+      const judgeRes = await fetch('/judge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx, user_translation: text })
+      });
+
+      if (judgeRes.ok) {
+        const { judgment } = await judgeRes.json();
+        alert(`Judgment: ${judgment}`); // Display the LLM's judgment
+      } else {
+        const error = await judgeRes.json();
+        alert(`Error: ${error.detail}`);
+      }
+
+      // Accept the translation after judgment
       const res = await fetch('/accept', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idx, text })
       });
       render(await res.json());

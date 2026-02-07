@@ -1,6 +1,0 @@
-fastapi
-uvicorn
-trafilatura
-lingodotdev
-openai
-python-dotenv

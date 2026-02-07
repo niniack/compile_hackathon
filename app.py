@@ -2,13 +2,17 @@ import os, re
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import trafilatura
 from lingodotdev import LingoDotDevEngine
+from huggingface_hub import InferenceClient
 
 app = FastAPI()
+
+# Free HF Inference API client (needs HF_TOKEN in .env)
+hf_client = InferenceClient(token=os.getenv("HF_TOKEN"), provider="novita")
 
 
 # --- Sentence tracker (server-side state) ---
@@ -137,6 +141,47 @@ async def lingo_translate(req: LingoRequest):
         )
     tracker.lingo[idx] = result
     return tracker.to_dict()
+
+
+# --- /judge (evaluate translation) ---
+
+class JudgeRequest(BaseModel):
+    idx: int
+    user_translation: str
+
+@app.post("/judge")
+async def judge_translation(req: JudgeRequest):
+    idx = req.idx
+
+    if idx < 0 or idx >= len(tracker.sentences):
+        raise HTTPException(status_code=400, detail="Invalid sentence index")
+
+    if idx not in tracker.lingo:
+        raise HTTPException(status_code=400, detail="No Lingo.dev translation available for this sentence")
+
+    lingo_translation = tracker.lingo[idx]
+    user_translation = req.user_translation
+
+    prompt = (
+        "You are a translation quality judge. Compare a user's translation against a ground-truth reference.\n"
+        "Rate the user translation from 1-10 and give one-sentence feedback on accuracy and fluency. "
+        "Don't reveal the true translation, they might try again.\n\n"
+        f"Ground Truth: {lingo_translation}\n"
+        f"User Translation: {user_translation}\n\n"
+        "Judgment:"
+    )
+
+    try:
+        response = hf_client.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            max_tokens=200,
+        )
+        judgment = response.choices[0].message.content.strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM evaluation failed: {str(e)}")
+
+    return {"judgment": judgment}
 
 
 # --- serve frontend ---
