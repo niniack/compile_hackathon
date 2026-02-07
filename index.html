@@ -129,7 +129,14 @@
       });
       // only re-render if we actually got a new translation
       const d = await res.json();
-      if (d.lingo && d.lingo[idx]) render(d);
+      if (d.lingo && d.lingo[idx]) {
+        // Preserve whatever the user has typed
+        const input = document.getElementById('user-input');
+        const saved = input ? input.value : '';
+        render(d);
+        const restored = document.getElementById('user-input');
+        if (restored && saved) restored.value = saved;
+      }
     }
 
     function renderRight(data) {
