@@ -11,6 +11,47 @@ from lingodotdev import LingoDotDevEngine
 app = FastAPI()
 
 
+# --- Sentence tracker (server-side state) ---
+
+class SentenceTracker:
+    def __init__(self):
+        self.paragraphs = []   # [{text, sentences}]
+        self.sentences = []    # flat list of sentence strings
+        self.states = []       # 'pending' | 'done' per sentence
+        self.focus = 0
+
+    def load(self, paragraphs):
+        self.paragraphs = paragraphs
+        self.sentences = [s for p in paragraphs for s in p["sentences"]]
+        self.states = ["pending"] * len(self.sentences)
+        self.focus = 0
+
+    def set_focus(self, idx):
+        if 0 <= idx < len(self.sentences):
+            self.focus = idx
+
+    def accept(self, idx):
+        if 0 <= idx < len(self.sentences):
+            self.states[idx] = "done"
+            # auto-advance to next pending
+            for i in range(idx + 1, len(self.sentences)):
+                if self.states[i] == "pending":
+                    self.focus = i
+                    return
+            self.focus = -1  # all done
+
+    def to_dict(self):
+        return {
+            "paragraphs": self.paragraphs,
+            "states": self.states,
+            "focus": self.focus,
+            "done": sum(1 for s in self.states if s == "done"),
+            "total": len(self.sentences),
+        }
+
+tracker = SentenceTracker()
+
+
 # --- /load-article ---
 
 class ArticleRequest(BaseModel):
@@ -29,12 +70,36 @@ def load_article(req: ArticleRequest):
         return {"error": "Could not extract article"}
 
     paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
-    # Each paragraph becomes {text, sentences[]}
     result = []
     for p in paragraphs:
         sents = split_sentences(p)
         result.append({"text": p, "sentences": sents})
-    return {"paragraphs": result}
+
+    tracker.load(result)
+    return tracker.to_dict()
+
+
+# --- /state, /focus, /accept ---
+
+@app.get("/state")
+def get_state():
+    return tracker.to_dict()
+
+class FocusRequest(BaseModel):
+    idx: int
+
+@app.post("/focus")
+def set_focus(req: FocusRequest):
+    tracker.set_focus(req.idx)
+    return tracker.to_dict()
+
+class AcceptRequest(BaseModel):
+    idx: int
+
+@app.post("/accept")
+def accept(req: AcceptRequest):
+    tracker.accept(req.idx)
+    return tracker.to_dict()
 
 
 # --- /translate ---

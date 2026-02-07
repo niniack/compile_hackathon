@@ -21,6 +21,11 @@
     /* Article */
     .para { margin-bottom: 16px; line-height: 1.8; font-size: 17px; }
     .para.title { font-weight: 700; font-size: 22px; margin-bottom: 20px; }
+
+    /* Sentence states */
+    .sent { transition: background .15s; border-radius: 2px; padding: 1px 0; }
+    .sent.focus { background: #fef08a; }
+    .sent.done { color: #6b7280; }
   </style>
 </head>
 <body>
@@ -36,6 +41,45 @@
   </div>
 
   <script>
+    // All state lives on the server. JS just renders.
+
+    function render(data) {
+      // Status
+      const parts = [`${data.done}/${data.total} translated`];
+      if (data.focus >= 0) parts.push(`sentence ${data.focus + 1}`);
+      document.getElementById('status').textContent = parts.join(' · ');
+
+      // Article
+      const art = document.getElementById('article');
+      art.innerHTML = '';
+      let sentIdx = 0;
+
+      data.paragraphs.forEach((p, pi) => {
+        const div = document.createElement('div');
+        div.className = pi === 0 ? 'para title' : 'para';
+
+        p.sentences.forEach(s => {
+          const i = sentIdx++;
+          const span = document.createElement('span');
+          span.className = 'sent'
+            + (i === data.focus ? ' focus' : '')
+            + (data.states[i] === 'done' ? ' done' : '');
+          span.textContent = s;
+          span.onclick = async () => {
+            const res = await fetch('/focus', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ idx: i })
+            });
+            render(await res.json());
+          };
+          div.appendChild(span);
+        });
+
+        art.appendChild(div);
+      });
+    }
+
     async function loadArticle() {
       const url = document.getElementById('url').value;
       document.getElementById('status').textContent = 'Loading...';
@@ -52,18 +96,7 @@
         return;
       }
 
-      const art = document.getElementById('article');
-      art.innerHTML = '';
-      data.paragraphs.forEach((p, i) => {
-        const div = document.createElement('div');
-        div.className = i === 0 ? 'para title' : 'para';
-        div.textContent = p.text;
-        art.appendChild(div);
-      });
-
-      const total = data.paragraphs.reduce((n, p) => n + p.sentences.length, 0);
-      document.getElementById('status').textContent = `Article loaded`;
-    
+      render(data);
     }
   </script>
 
