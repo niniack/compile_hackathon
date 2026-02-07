@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Good Tidings</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+  input, button { font-size: 16px; padding: 8px; }
+  #url-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+  #url-bar input { flex: 1; }
+  .para { margin-bottom: 16px; }
+  .zh { font-size: 20px; cursor: pointer; line-height: 1.8; }
+  .zh .selected { background: #fde68a; border-radius: 2px; }
+  .en { color: #666; font-size: 14px; margin-top: 4px; }
+  section { margin-bottom: 24px; }
+  #status { color: #999; font-size: 14px; }
+</style>
+</head>
+<body>
+
+
+<div id="url-bar">
+  <input id="url" placeholder="Paste NYT article URL" />
+  <button onclick="loadArticle()">Load</button>
+</div>
+<div id="status"></div>
+
+<section id="article-section" hidden>
+  <div id="article"></div>
+</section>
+
+<script>
+let data = { en: [], zh: [] };
+
+async function loadArticle() {
+  const url = document.getElementById('url').value;
+  document.getElementById('status').textContent = 'Loading & translating...';
+  const res = await fetch('/load-article', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  data = await res.json();
+  if (data.error) { document.getElementById('status').textContent = data.error; return; }
+  document.getElementById('status').textContent = '';
+  renderArticle();
+}
+
+function renderArticle() {
+  const el = document.getElementById('article');
+  el.innerHTML = '';
+  data.zh.forEach((zh, i) => {
+    const div = document.createElement('div');
+    div.className = 'para';
+    div.innerHTML = `<div class="zh">${zh}</div><div class="en">${data.en[i] || ''}</div>`;
+    el.appendChild(div);
+  });
+  document.getElementById('article-section').hidden = false;
+}
+</script>
+</body>
+</html>
