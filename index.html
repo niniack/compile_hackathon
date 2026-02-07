@@ -5,53 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Good Tidings</title>
 
-  <!-- Styles -->
   <style>
-    
-    /* Reset & base */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    body { font-family: system-ui, sans-serif; padding: 24px 40px; }
 
-    /* URL input bar */
     input, button { font-size: 16px; padding: 8px; }
-    #url-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+    #url-bar { display: flex; gap: 8px; margin-bottom: 16px; max-width: 600px; }
     #url-bar input { flex: 1; }
+    #status { color: #999; font-size: 14px; margin-bottom: 16px; }
 
-    /* Article display */
-    .para { margin-bottom: 12px; line-height: 1.7; }
-    #status { color: #999; font-size: 14px; }
+    /* Two-panel layout */
+    #panels { display: flex; gap: 32px; }
+    .panel { flex: 1; min-width: 0; }
 
+    /* Article */
+    .para { margin-bottom: 16px; line-height: 1.8; font-size: 17px; }
+    .para.title { font-weight: 700; font-size: 22px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
 
-  <!-- URL input -->
   <div id="url-bar">
     <input id="url" placeholder="Paste article URL" />
     <button onclick="loadArticle()">Load</button>
   </div>
-
-  <!-- Status message (loading / error / paragraph count) -->
   <div id="status"></div>
-
-  <!-- Article content (hidden until loaded) -->
-  <section id="article-section" hidden>
-    <div id="article"></div>
-  </section>
+  <div id="panels">
+    <div class="panel" id="article"></div>
+    <div class="panel" id="right"></div>
+  </div>
 
   <script>
     async function loadArticle() {
       const url = document.getElementById('url').value;
-
-      // Show loading state
       document.getElementById('status').textContent = 'Loading...';
 
-      // POST the URL to the backend
       const res = await fetch('/load-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,17 +47,23 @@
       });
       const data = await res.json();
 
-      // Handle errors
       if (data.error) {
         document.getElementById('status').textContent = data.error;
         return;
       }
 
-      // Render paragraphs
-      document.getElementById('status').textContent = data.paragraphs.length + ' paragraphs';
-      document.getElementById('article').innerHTML =
-        data.paragraphs.map(p => `<div class="para">${p}</div>`).join('');
-      document.getElementById('article-section').hidden = false;
+      const art = document.getElementById('article');
+      art.innerHTML = '';
+      data.paragraphs.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = i === 0 ? 'para title' : 'para';
+        div.textContent = p.text;
+        art.appendChild(div);
+      });
+
+      const total = data.paragraphs.reduce((n, p) => n + p.sentences.length, 0);
+      document.getElementById('status').textContent = `Article loaded`;
+    
     }
   </script>
 
