@@ -219,8 +219,14 @@
       });
 
       if (judgeRes.ok) {
-        const { judgment } = await judgeRes.json();
-        fb.innerHTML = '<b>Judge:</b> ' + judgment.replace(/\n/g, '<br>');
+        const { judgment, score } = await judgeRes.json();
+        let html = '<b>Judge:</b> ' + judgment.replace(/\n/g, '<br>');
+        if (score !== null && score >= 8) {
+          html += `<br><button onclick="acceptTranslation()" style="margin-top:8px;background:#16a34a;">Accept &amp; Continue ✓</button>`;
+        } else if (score !== null) {
+          html += '<br><span style="color:#dc2626;font-size:13px;">Score too low (' + score + '/10) — try again!</span>';
+        }
+        fb.innerHTML = html;
       } else {
         const error = await judgeRes.json();
         fb.style.color = '#dc2626';
@@ -228,6 +234,20 @@
         fb.style.background = '#fef2f2';
         fb.textContent = 'Error: ' + error.detail;
       }
+    }
+    async function acceptTranslation() {
+      const input = document.getElementById('user-input');
+      const text = input ? input.value.trim() : '';
+      const state = await fetch('/state').then(r => r.json());
+      const idx = state.focus;
+      const res = await fetch('/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx, text })
+      });
+      const newState = await res.json();
+      render(newState);
+      if (newState.focus >= 0) triggerLingo(newState.focus);
     }
   </script>
 

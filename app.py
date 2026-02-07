@@ -24,6 +24,7 @@ class SentenceTracker:
         self.states = []       # 'pending' | 'done' per sentence
         self.translations = {} # idx -> user's accepted translation text
         self.lingo = {}         # idx -> cached lingo.dev translation (one-shot)
+        self.scores = {}        # idx -> latest judge score (1-10)
         self.focus = 0
 
     def load(self, paragraphs):
@@ -32,6 +33,7 @@ class SentenceTracker:
         self.states = ["pending"] * len(self.sentences)
         self.translations = {}
         self.lingo = {}
+        self.scores = {}
         self.focus = 0
 
     def set_focus(self, idx):
@@ -55,6 +57,7 @@ class SentenceTracker:
             "states": self.states,
             "translations": self.translations,
             "lingo": self.lingo,
+            "scores": self.scores,
             "focus": self.focus,
             "done": sum(1 for s in self.states if s == "done"),
             "total": len(self.sentences),
@@ -181,7 +184,20 @@ async def judge_translation(req: JudgeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM evaluation failed: {str(e)}")
 
-    return {"judgment": judgment}
+    # Extract numeric score from judgment text
+    score = None
+    m = re.search(r'(\d+)\s*/\s*10', judgment)
+    if m:
+        score = int(m.group(1))
+    else:
+        m = re.search(r'\b(10|[1-9])\b', judgment)
+        if m:
+            score = int(m.group(1))
+
+    if score is not None:
+        tracker.scores[idx] = score
+
+    return {"judgment": judgment, "score": score}
 
 
 # --- serve frontend ---
