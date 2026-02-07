@@ -9,9 +9,6 @@ import trafilatura
 
 app = FastAPI()
 
-
-# --- /load-article ---
-
 class ArticleRequest(BaseModel):
     url: str
 

@@ -1,48 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Good Tidings</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-  input, button { font-size: 16px; padding: 8px; }
-  #url-bar { display: flex; gap: 8px; margin-bottom: 20px; }
-  #url-bar input { flex: 1; }
-  .para { margin-bottom: 12px; line-height: 1.7; }
-  section { margin-bottom: 24px; }
-  #status { color: #999; font-size: 14px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Good Tidings</title>
+
+  <!-- Styles -->
+  <style>
+    
+    /* Reset & base */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* URL input bar */
+    input, button { font-size: 16px; padding: 8px; }
+    #url-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+    #url-bar input { flex: 1; }
+
+    /* Article display */
+    .para { margin-bottom: 12px; line-height: 1.7; }
+    #status { color: #999; font-size: 14px; }
+
+  </style>
 </head>
 <body>
 
+  <!-- URL input -->
+  <div id="url-bar">
+    <input id="url" placeholder="Paste article URL" />
+    <button onclick="loadArticle()">Load</button>
+  </div>
 
-<div id="url-bar">
-  <input id="url" placeholder="Paste article URL" />
-  <button onclick="loadArticle()">Load</button>
-</div>
-<div id="status"></div>
+  <!-- Status message (loading / error / paragraph count) -->
+  <div id="status"></div>
 
-<section id="article-section" hidden>
-  <div id="article"></div>
-</section>
+  <!-- Article content (hidden until loaded) -->
+  <section id="article-section" hidden>
+    <div id="article"></div>
+  </section>
 
-<script>
-async function loadArticle() {
-  const url = document.getElementById('url').value;
-  document.getElementById('status').textContent = 'Loading...';
-  const res = await fetch('/load-article', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url })
-  });
-  const data = await res.json();
-  if (data.error) { document.getElementById('status').textContent = data.error; return; }
-  document.getElementById('status').textContent = data.paragraphs.length + ' paragraphs';
-  const el = document.getElementById('article');
-  el.innerHTML = data.paragraphs.map(p => `<div class="para">${p}</div>`).join('');
-  document.getElementById('article-section').hidden = false;
-}
-</script>
+  <script>
+    async function loadArticle() {
+      const url = document.getElementById('url').value;
+
+      // Show loading state
+      document.getElementById('status').textContent = 'Loading...';
+
+      // POST the URL to the backend
+      const res = await fetch('/load-article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+
+      // Handle errors
+      if (data.error) {
+        document.getElementById('status').textContent = data.error;
+        return;
+      }
+
+      // Render paragraphs
+      document.getElementById('status').textContent = data.paragraphs.length + ' paragraphs';
+      document.getElementById('article').innerHTML =
+        data.paragraphs.map(p => `<div class="para">${p}</div>`).join('');
+      document.getElementById('article-section').hidden = false;
+    }
+  </script>
+
 </body>
 </html>
