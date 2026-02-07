@@ -23,9 +23,24 @@
     .para.title { font-weight: 700; font-size: 22px; margin-bottom: 20px; }
 
     /* Sentence states */
-    .sent { transition: background .15s; border-radius: 2px; padding: 1px 0; }
+    .sent { transition: background .15s; border-radius: 2px; padding: 1px 0; cursor: pointer; }
     .sent.focus { background: #fef08a; }
     .sent.done { color: #6b7280; }
+
+    /* Right panel */
+    .accepted { margin-bottom: 10px; line-height: 1.7; font-size: 16px; color: #374151; }
+    #translate-box { display: flex; flex-direction: column; gap: 8px; }
+    #translate-box textarea {
+      width: 100%; font-size: 15px; padding: 8px; border: 1px solid #ddd;
+      border-radius: 4px; resize: vertical; min-height: 60px; font-family: inherit;
+      line-height: 1.5;
+    }
+    #translate-box button {
+      align-self: flex-start; padding: 6px 16px; font-size: 14px;
+      background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    }
+    #translate-box button:disabled { opacity: .5; cursor: wait; }
+    .lingo-result { font-size: 14px; color: #16a34a; margin-top: 4px; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -71,13 +86,17 @@
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ idx: i })
             });
-            render(await res.json());
+            const d = await res.json();
+            render(d);
+            triggerLingo(i);
           };
           div.appendChild(span);
         });
 
         art.appendChild(div);
       });
+
+      renderRight(data);
     }
 
     async function loadArticle() {
@@ -97,6 +116,94 @@
       }
 
       render(data);
+      if (data.focus >= 0) triggerLingo(data.focus);
+    }
+
+    // Fire-and-forget: translate in background, re-render when done
+    async function triggerLingo(idx) {
+      const res = await fetch('/lingo', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ idx })
+      });
+      // only re-render if we actually got a new translation
+      const d = await res.json();
+      if (d.lingo && d.lingo[idx]) render(d);
+    }
+
+    function renderRight(data) {
+      const right = document.getElementById('right');
+      right.innerHTML = '';
+      right.dataset.state = JSON.stringify(data);
+
+      // Mirror paragraph structure from left side
+      let sentIdx = 0;
+      let inputPlaced = false;
+
+      data.paragraphs.forEach((p, pi) => {
+        const div = document.createElement('div');
+        div.className = pi === 0 ? 'accepted title' : 'accepted';
+        let hasContent = false;
+
+        p.sentences.forEach(() => {
+          const i = sentIdx++;
+          if (data.states[i] === 'done') {
+            const t = data.translations[i] || '';
+            if (t) {
+              if (hasContent) div.appendChild(document.createTextNode(' '));
+              div.appendChild(document.createTextNode(t));
+              hasContent = true;
+            }
+          } else if (!inputPlaced && i === data.focus) {
+            // Insert the input box inside this paragraph's flow
+            if (hasContent) right.appendChild(div);
+            inputPlaced = true;
+          }
+        });
+
+        if (hasContent) right.appendChild(div);
+      });
+
+      // Input box for current focus sentence
+      if (data.focus >= 0) {
+        const idx = data.focus;
+        const hasLingo = data.lingo && data.lingo[idx];
+        const revealed = document.getElementById('right')?.dataset.revealed === String(idx);
+        const box = document.createElement('div');
+        box.id = 'translate-box';
+        box.innerHTML = `
+          <textarea id="user-input" placeholder="Translate this sentence…"></textarea>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="submitTranslation()">Judge</button>
+            ${hasLingo ? `<button onclick="revealLingo()" style="background:${revealed ? '#9ca3af' : '#16a34a'}" ${revealed ? 'disabled' : ''}>Reveal</button>` : '<span style="color:#aaa;font-size:13px;">Translating…</span>'}
+          </div>
+          ${revealed ? '<div class="lingo-result"><b>Lingo.dev:</b> ' + data.lingo[idx] + '</div>' : ''}
+        `;
+        right.appendChild(box);
+        setTimeout(() => document.getElementById('user-input')?.focus(), 0);
+      }
+    }
+
+    function revealLingo() {
+      const right = document.getElementById('right');
+      // Mark as revealed so re-render shows it
+      const state = JSON.parse(right.dataset.state || '{}');
+      right.dataset.revealed = String(state.focus);
+      renderRight(state);
+    }
+
+    async function submitTranslation() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      const state = await fetch('/state').then(r => r.json());
+      const idx = state.focus;
+
+      const res = await fetch('/accept', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ idx, text })
+      });
+      render(await res.json());
     }
   </script>
 

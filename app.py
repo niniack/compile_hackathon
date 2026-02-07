@@ -18,12 +18,16 @@ class SentenceTracker:
         self.paragraphs = []   # [{text, sentences}]
         self.sentences = []    # flat list of sentence strings
         self.states = []       # 'pending' | 'done' per sentence
+        self.translations = {} # idx -> user's accepted translation text
+        self.lingo = {}         # idx -> cached lingo.dev translation (one-shot)
         self.focus = 0
 
     def load(self, paragraphs):
         self.paragraphs = paragraphs
         self.sentences = [s for p in paragraphs for s in p["sentences"]]
         self.states = ["pending"] * len(self.sentences)
+        self.translations = {}
+        self.lingo = {}
         self.focus = 0
 
     def set_focus(self, idx):
@@ -43,7 +47,10 @@ class SentenceTracker:
     def to_dict(self):
         return {
             "paragraphs": self.paragraphs,
+            "sentences": self.sentences,
             "states": self.states,
+            "translations": self.translations,
+            "lingo": self.lingo,
             "focus": self.focus,
             "done": sum(1 for s in self.states if s == "done"),
             "total": len(self.sentences),
@@ -95,29 +102,41 @@ def set_focus(req: FocusRequest):
 
 class AcceptRequest(BaseModel):
     idx: int
+    text: str = ""
 
 @app.post("/accept")
 def accept(req: AcceptRequest):
+    tracker.translations[req.idx] = req.text
     tracker.accept(req.idx)
     return tracker.to_dict()
 
 
-# --- /translate ---
+# --- /lingo (one-shot cached translation) ---
 
-class TranslateRequest(BaseModel):
-    text: str
+class LingoRequest(BaseModel):
+    idx: int
 
-@app.post("/translate")
-async def translate(req: TranslateRequest):
+@app.post("/lingo")
+async def lingo_translate(req: LingoRequest):
+    idx = req.idx
+    # Already cached? Return immediately, no API call
+    if idx in tracker.lingo:
+        return tracker.to_dict()
+
+    if idx < 0 or idx >= len(tracker.sentences):
+        return {"error": "Invalid sentence index"}
+
     api_key = os.getenv("LINGODOTDEV_API_KEY")
     if not api_key:
         return {"error": "LINGODOTDEV_API_KEY not set"}
 
     async with LingoDotDevEngine({"api_key": api_key}) as engine:
         result = await engine.localize_text(
-            req.text, {"source_locale": "zh-Hans", "target_locale": "en"}
+            tracker.sentences[idx],
+            {"source_locale": "zh-Hans", "target_locale": "en"}
         )
-    return {"translation": result}
+    tracker.lingo[idx] = result
+    return tracker.to_dict()
 
 
 # --- serve frontend ---
